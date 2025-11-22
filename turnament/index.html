@@ -96,7 +96,7 @@ async function loadTournament() {
   // 1. Fetch base config JSON from directory
   let baseData;
   try {
-    const configURL = "https://theredmineword.github.io/config/tournament/index.json";
+    const configURL = "https://theredmineword.github.io/config/tournament/";
     baseData = await fetch(configURL).then(r => r.json());
     console.log("Loaded config:", baseData);
   } catch (e) {
