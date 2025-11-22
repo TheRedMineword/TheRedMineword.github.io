@@ -93,41 +93,52 @@ console.log("Tournament page script loaded.");
 async function loadTournament() {
   console.log("Starting tournament data loading...");
 
-  const baseData = {
-    base: "https://theredmineword.github.io/config/tournament",
-    rules: "rules.txt",
-    reward: "reward.json",
-    schedule: { active: false, path: "schedule/001.txt" }
-  };
-
-  // Load description.txt if exists
+  // 1. Fetch base config JSON from directory
+  let baseData;
   try {
-    const desc = await fetch(baseData.base + "/description.txt");
+    const configURL = "https://theredmineword.github.io/config/tournament/index.json";
+    baseData = await fetch(configURL).then(r => r.json());
+    console.log("Loaded config:", baseData);
+  } catch (e) {
+    console.error("Could not load tournament config JSON:", e);
+    return; // stop if no config found
+  }
+
+  // 2. Load description if exists
+  try {
+    const desc = await fetch(`${baseData.base}/${baseData.description}`);
     if (desc.ok) {
-      document.getElementById("description-content").innerHTML = (await desc.text()).replace(/\n/g, '<br>');
+      document.getElementById("description-content").innerHTML =
+        (await desc.text()).replace(/\n/g, '<br>');
     }
   } catch(e) {}
 
-  // Load rules
+  // 3. Load rules
   try {
-    const rules = await fetch(baseData.base + "/" + baseData.rules);
+    const rules = await fetch(`${baseData.base}/${baseData.rules}`);
     if (rules.ok) {
-      document.getElementById("rules-content").innerHTML = (await rules.text()).replace(/\n/g, '<br>');
+      document.getElementById("rules-content").innerHTML =
+        (await rules.text()).replace(/\n/g, '<br>');
     }
   } catch(e) {}
 
-  // Load reward JSON
+  // 4. Load reward JSON
   try {
-    const rewardData = await fetch(baseData.base + "/" + baseData.reward).then(r => r.json());
+    const rewardData = await fetch(`${baseData.base}/${baseData.reward}`).then(r => r.json());
     const list = rewardData.list;
     const icons = rewardData.icons_map;
+
     const rewardBox = document.getElementById("reward-list");
 
     list.forEach(item => {
       const div = document.createElement("div");
       div.className = "reward-item";
       const typeUpper = item.type.charAt(0).toUpperCase() + item.type.slice(1);
-      div.innerHTML = `<img src="${icons[item.type]}" /><span><strong>${typeUpper}</strong> Artefact Level ${item.lvl} +${item.boost}% amount: ${item["amount-math"]}</span>`;
+      div.innerHTML = `
+        <img src="${icons[item.type]}" />
+        <span><strong>${typeUpper}</strong> Artefact Level ${item.lvl}
+        +${item.boost}% amount: ${item["amount-math"]}</span>
+      `;
       rewardBox.appendChild(div);
     });
 
@@ -141,17 +152,18 @@ async function loadTournament() {
 
   } catch(e) {}
 
-  // Load schedule
-  if (baseData.schedule.active) {
+  // 5. Load schedule only if active
+  if (baseData.schedule?.active) {
     document.getElementById("schedule-box").style.display = "block";
     try {
-      const scheduleTxt = await fetch(baseData.base + "/" + baseData.schedule.path).then(r => r.text());
+      const scheduleTxt = await fetch(`${baseData.base}/${baseData.schedule.path}`).then(r => r.text());
       document.getElementById("schedule-content").innerHTML = scheduleTxt.replace(/\n/g, '<br>');
     } catch(e) {}
   }
 }
 
 loadTournament();
+
 
 
 
