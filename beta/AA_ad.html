@@ -59,15 +59,15 @@ a {
 <script>
 function renderMarkdown() {
   document.getElementById("loading").style.display = "block";
-  document.getElementById("markdownInputContainer").style.display = "none"; //Ukrycie pola tekstowego
-
+  document.getElementById("markdownInputContainer").style.display = "none"; // fuck you make your own page
   const markdownText = document.getElementById("markdownInput").value;
   const htmlOutput = marked.parse(markdownText);
   document.getElementById("output").innerHTML = htmlOutput;
   document.getElementById("loading").style.display = "none";
 }
 
-// Automatyczne renderowanie po załadowaniu strony
+  
+// When page loads do the renderMarkdown();
 window.addEventListener('load', function() {
   renderMarkdown();
 });
