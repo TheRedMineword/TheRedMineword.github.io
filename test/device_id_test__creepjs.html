@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device ID + username test</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --mute:#667085; --line:#e2e5ea; --acc:#0f766e; --warn:#b45309; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151a; --card:#1a1f26; --ink:#e8ebf0; --mute:#8b94a3; --line:#2a313b; --acc:#2dd4bf; --warn:#fbbf24; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:24px 16px 48px; }
+  main { max-width:820px; margin:0 auto; display:grid; gap:16px; }
+  h1 { font-size:18px; margin:0; font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .name { font:700 clamp(28px,7vw,44px)/1.1 Georgia, "Times New Roman", serif; letter-spacing:-.01em; word-break:break-all; margin:4px 0 12px; }
+  .row { display:grid; grid-template-columns:130px 1fr; gap:4px 12px; padding:6px 0; border-top:1px solid var(--line); align-items:baseline; }
+  .row:first-of-type { border-top:0; }
+  .k { color:var(--mute); }
+  .v { font-family:ui-monospace, Menlo, Consolas, monospace; font-size:13px; word-break:break-all; }
+  .ok { color:var(--acc); } .bad { color:var(--warn); }
+  button { font:inherit; background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; }
+  @media (prefers-color-scheme: dark) { button { color:#06201d; } }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:5px 8px 5px 0; border-top:1px solid var(--line); vertical-align:top; }
+  td:nth-child(2) { font-family:ui-monospace, Menlo, Consolas, monospace; word-break:break-all; color:var(--mute); }
+  td:nth-child(3) { font-family:ui-monospace, Menlo, Consolas, monospace; }
+  .wrap { overflow-x:auto; }
+  small { color:var(--mute); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Device ID + username test</h1>
+
+  <section class="card" aria-live="polite">
+    <small>Generated username</small>
+    <div class="name" id="username">Collecting…</div>
+    <div class="actions">
+      <button id="copy">Copy username</button>
+      <button id="rerun" class="ghost">Run again</button>
+    </div>
+  </section>
+
+  <section class="card" id="ids"></section>
+
+  <section class="card">
+    <strong>Signals</strong>
+    <div class="wrap"><table id="signals"><thead><tr><th>Signal</th><th>Value</th><th>Hash</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</main>
+
+<script>
+/* ---------- hashing ---------- */
+const enc = new TextEncoder();
+async function sha256(str) {
+  if (window.crypto && crypto.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(str));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  // fallback for insecure contexts: 8 x FNV-1a with different seeds -> 64 hex chars
+  let out = '';
+  for (let s = 0; s < 8; s++) {
+    let h = (0x811c9dc5 ^ (s * 0x9e3779b1)) >>> 0;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    out += h.toString(16).padStart(8, '0');
+  }
+  return out;
+}
+const short = h => h ? h.slice(0, 8) : '—';
+const attempt = (fn, fallback = 'unsupported') => { try { const r = fn(); return r === undefined ? fallback : r; } catch (e) { return fallback; } };
+
+/* ---------- signal collectors ---------- */
+function canvasSignal() {
+  const c = document.createElement('canvas'); c.width = 260; c.height = 70;
+  const x = c.getContext('2d');
+  x.textBaseline = 'alphabetic';
+  x.fillStyle = '#f60'; x.fillRect(110, 2, 70, 22);
+  x.fillStyle = '#069'; x.font = '15px Arial, sans-serif';
+  x.fillText('Cwm fjord 😃 vext quiz', 2, 16);
+  x.fillStyle = 'rgba(102,204,0,.7)'; x.font = '18px "Times New Roman", serif';
+  x.fillText('Cwm fjordbank glyphs vext quiz', 4, 46);
+  x.globalCompositeOperation = 'multiply';
+  [['#f2f', 50, 55], ['#2ff', 80, 55], ['#ff2', 65, 40]].forEach(([col, px, py]) => {
+    x.fillStyle = col; x.beginPath(); x.arc(px, py, 18, 0, Math.PI * 2, true); x.closePath(); x.fill();
+  });
+  return c.toDataURL();
+}
+
+function webglSignal() {
+  const c = document.createElement('canvas');
+  const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+  if (!gl) return null;
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const P = n => attempt(() => String(gl.getParameter(n)));
+  return {
+    vendor: ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : P(gl.VENDOR),
+    renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : P(gl.RENDERER),
+    params: [gl.MAX_TEXTURE_SIZE, gl.MAX_VERTEX_ATTRIBS, gl.MAX_VIEWPORT_DIMS, gl.ALIASED_LINE_WIDTH_RANGE,
+             gl.ALIASED_POINT_SIZE_RANGE, gl.MAX_RENDERBUFFER_SIZE, gl.MAX_VARYING_VECTORS, gl.SHADING_LANGUAGE_VERSION].map(P).join('|'),
+    extensions: (gl.getSupportedExtensions() || []).sort().join(',')
+  };
+}
+
+async function audioSignal() {
+  const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!Ctx) return null;
+  const ctx = new Ctx(1, 5000, 44100);
+  const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = 10000;
+  const comp = ctx.createDynamicsCompressor();
+  attempt(() => { comp.threshold.value = -50; comp.knee.value = 40; comp.attack.value = 0; });
+  osc.connect(comp); comp.connect(ctx.destination); osc.start(0);
+  const buf = await ctx.startRendering();
+  const data = buf.getChannelData(0);
+  let sum = 0; for (let i = 4500; i < 5000; i++) sum += Math.abs(data[i]);
+  return { sum: sum.toString(), reduction: String(comp.reduction.value ?? comp.reduction) };
+}
+
+function mathSignal() {
+  return [Math.acos(0.123124234234234242), Math.acosh(1e308), Math.asinh(1), Math.atanh(0.5), Math.cbrt(100),
+          Math.cosh(1), Math.expm1(1), Math.log1p(10), Math.sinh(1), Math.tanh(1), Math.tan(-1e300), Math.pow(Math.PI, -100)].join('|');
+}
+
+function fontsSignal() {
+  const list = ['Segoe UI Emoji','Segoe Fluent Icons','Bahnschrift','Cambria Math','Nirmala UI','Leelawadee UI','Lucida Console','Helvetica Neue',
+    'Luminari','PingFang HK Light','American Typewriter','Futura','Geneva','Roboto','Ubuntu','Liberation Mono','DejaVu Sans','Droid Sans Mono',
+    'Noto Color Emoji','Source Code Pro','Dancing Script','Arimo','Cousine','OpenSymbol'];
+  const bases = ['monospace', 'sans-serif', 'serif'];
+  const span = document.createElement('span');
+  span.style.cssText = 'position:absolute;left:-9999px;font-size:72px;visibility:hidden';
+  span.textContent = 'mmmmmmmmmmlli😃';
+  document.body.appendChild(span);
+  const base = {};
+  bases.forEach(b => { span.style.fontFamily = b; base[b] = span.offsetWidth + 'x' + span.offsetHeight; });
+  const found = list.filter(f => bases.some(b => {
+    span.style.fontFamily = `"${f}",${b}`;
+    return (span.offsetWidth + 'x' + span.offsetHeight) !== base[b];
+  }));
+  span.remove();
+  return found.join(',');
+}
+
+async function collect() {
+  const n = navigator, s = screen;
+  const gl = attempt(webglSignal, null);
+  const audio = await attempt(audioSignal, null);
+  const canvasUri = attempt(canvasSignal, 'unsupported');
+  const canvasHash = await sha256(canvasUri);
+
+  // [key, value, stable?]  stable = used for the Core ID (username)
+  return [
+    ['canvas',            canvasHash,                                   true],
+    ['webgl.vendor',      gl ? gl.vendor : 'none',                      true],
+    ['webgl.renderer',    gl ? gl.renderer : 'none',                    true],
+    ['webgl.params',      gl ? gl.params : 'none',                      true],
+    ['webgl.extensions',  gl ? gl.extensions : 'none',                  false],
+    ['audio.sum',         audio ? audio.sum : 'none',                   true],
+    ['audio.reduction',   audio ? audio.reduction : 'none',             true],
+    ['math',              attempt(mathSignal),                          true],
+    ['fonts',             attempt(fontsSignal, ''),                     true],
+    ['nav.platform',      n.platform,                                   true],
+    ['nav.cores',         String(n.hardwareConcurrency),                true],
+    ['nav.memory',        String(n.deviceMemory ?? 'n/a'),              true],
+    ['nav.touch',         String(n.maxTouchPoints),                     false],
+    ['nav.vendor',        n.vendor,                                     false],
+    ['nav.languages',     (n.languages || [n.language]).join(','),      false],
+    ['nav.userAgent',     n.userAgent,                                  false],
+    ['screen.size',       `${s.width}x${s.height}`,                     false],
+    ['screen.avail',      `${s.availWidth}x${s.availHeight}`,           false],
+    ['screen.depth',      `${s.colorDepth}/${s.pixelDepth}`,            false],
+    ['screen.dpr',        String(devicePixelRatio),                     false],
+    ['timezone',          Intl.DateTimeFormat().resolvedOptions().timeZone, true],
+    ['tz.offset',         String(new Date().getTimezoneOffset()),       false],
+    ['plugins',           String(n.plugins ? n.plugins.length : 0),     false],
+    ['mimeTypes',         String(n.mimeTypes ? n.mimeTypes.length : 0), false],
+  ];
+}
+
+/* ---------- IDs ---------- */
+// Fuzzy ID: signals are spread over 16 bins, each bin hashed, first hex char kept.
+// One changed signal alters ~1 char, so two IDs can be compared by Hamming distance.
+async function fuzzyId(signals) {
+  const BINS = 16, bins = Array.from({ length: BINS }, () => []);
+  signals.forEach(([k, v], i) => bins[i % BINS].push(`${k}=${v}`));
+  const chars = await Promise.all(bins.map(async b => (await sha256(b.join('\n')))[0]));
+  return chars.join('');
+}
+async function coreId(signals) {
+  return sha256(signals.filter(s => s[2]).map(([k, v]) => `${k}=${v}`).join('\n'));
+}
+
+/* ---------- username ---------- */
+const ADJ = ['Amazing','Rare','Brave','Cosmic','Crispy','Dizzy','Epic','Fuzzy','Golden','Happy','Jolly','Lucky','Mighty','Noble','Quirky','Silent',
+             'Sneaky','Spicy','Sunny','Swift','Tiny','Wild','Wobbly','Zesty','Ancient','Mystic','Funky','Gentle','Hungry','Sleepy','Shiny','Clever'];
+const NOUN = ['Pancake','Dog','Flower','Waffle','Falcon','Pickle','Muffin','Walrus','Cactus','Biscuit','Dragon','Turnip','Otter','Noodle','Pirate','Wizard',
+              'Mango','Badger','Lantern','Comet','Pretzel','Gnome','Penguin','Tulip','Donut','Raccoon','Goblin','Ferret','Cupcake','Toad','Thistle','Knight'];
+function usernameFrom(hex) {
+  let n = BigInt('0x' + hex);
+  const a = Number(n % BigInt(ADJ.length)); n /= BigInt(ADJ.length);
+  const o = Number(n % BigInt(NOUN.length)); n /= BigInt(NOUN.length);
+  const d = 1000 + Number(n % 9000n);               // 4 digits, no leading zero
+  return `${ADJ[a]}${NOUN[o]}${d}`;
+}
+
+/* ---------- UI ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+async function run() {
+  $('username').textContent = 'Collecting…';
+  const t0 = performance.now();
+  const a = await collect();
+  const b = await collect();                         // second pass = stability check
+  const [core, coreB, fuzzy, fuzzyB] = await Promise.all([coreId(a), coreId(b), fuzzyId(a), fuzzyId(b)]);
+  const ms = Math.round(performance.now() - t0);
+  const stable = core === coreB;
+  const name = usernameFrom(core);
+
+  $('username').textContent = name;
+  $('ids').innerHTML = `
+    <div class="row"><span class="k">Core ID</span><span class="v">${core.slice(0, 16)}</span></div>
+    <div class="row"><span class="k">Core ID (full)</span><span class="v">${core}</span></div>
+    <div class="row"><span class="k">Fuzzy ID</span><span class="v">${fuzzy}</span></div>
+    <div class="row"><span class="k">Stable over 2 runs</span><span class="v ${stable ? 'ok' : 'bad'}">${stable ? 'yes' : 'no: this browser randomizes some signals (canvas/audio noise), so the ID changes per load'}</span></div>
+    <div class="row"><span class="k">Fuzzy match</span><span class="v">${[...fuzzy].filter((c, i) => c !== fuzzyB[i]).length} of 16 chars differ between the two runs</span></div>
+    <div class="row"><span class="k">Collection time</span><span class="v">${ms} ms (2 passes)</span></div>`;
+
+  $('signals').querySelector('tbody').innerHTML = (await Promise.all(a.map(async ([k, v, st]) => {
+    const h = await sha256(String(v));
+    const shown = String(v).length > 90 ? String(v).slice(0, 90) + '…' : v;
+    return `<tr><td>${esc(k)}${st ? ' <small>(core)</small>' : ''}</td><td>${esc(shown)}</td><td>${short(h)}</td></tr>`;
+  }))).join('');
+}
+
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('username').textContent); $('copy').textContent = 'Copied'; }
+  catch (e) { $('copy').textContent = 'Copy failed'; }
+  setTimeout(() => $('copy').textContent = 'Copy username', 1200);
+};
+$('rerun').onclick = run;
+run();
+</script>
+</body>
+</html>
