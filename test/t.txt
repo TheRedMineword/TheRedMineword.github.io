@@ -1,0 +1,49 @@
+(async () => {
+  const SALT = 'change-me-to-your-own-secret';   // mixed into the one-way step
+
+  /* ---- start: collect ---- */
+  const n = navigator, t = x => { try { return String(x()); } catch (e) { return 'na'; } };
+  const canvas = t(() => {
+    const c = document.createElement('canvas'); c.width = 260; c.height = 70;
+    const x = c.getContext('2d');
+    x.fillStyle = '#f60'; x.fillRect(110, 2, 70, 22);
+    x.fillStyle = '#069'; x.font = '15px Arial'; x.fillText('Cwm fjord 😃 vext quiz', 2, 16);
+    x.fillStyle = 'rgba(102,204,0,.7)'; x.font = '18px serif'; x.fillText('Cwm fjordbank glyphs', 4, 46);
+    return c.toDataURL();
+  });
+  const gpu = t(() => {
+    const g = document.createElement('canvas').getContext('webgl'), e = g.getExtension('WEBGL_debug_renderer_info');
+    return g.getParameter(e.UNMASKED_VENDOR_WEBGL) + g.getParameter(e.UNMASKED_RENDERER_WEBGL) + g.getParameter(g.MAX_TEXTURE_SIZE);
+  });
+  const audio = await (async () => {
+    try {
+      const ctx = new OfflineAudioContext(1, 5000, 44100), o = ctx.createOscillator(), k = ctx.createDynamicsCompressor();
+      o.type = 'triangle'; o.frequency.value = 10000; k.threshold.value = -50; k.knee.value = 40; k.attack.value = 0;
+      o.connect(k); k.connect(ctx.destination); o.start(0);
+      const d = (await ctx.startRendering()).getChannelData(0); let s = 0;
+      for (let i = 4500; i < 5000; i++) s += Math.abs(d[i]);
+      return s + '|' + k.reduction;
+    } catch (e) { return 'na'; }
+  })();
+  const raw = [canvas, gpu, audio, n.platform, n.hardwareConcurrency, n.deviceMemory,
+    Intl.DateTimeFormat().resolvedOptions().timeZone, Math.tan(-1e300), Math.acosh(1e308)].join('\u0001');
+  /* ---- end: collect ---- */
+
+  /* ---- one-way: raw signals -> HMAC-SHA256 -> truncated; cannot be reversed ---- */
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(SALT), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = async s => [...new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(s)))]
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  const ADJ = ['Amazing','Rare','Brave','Cosmic','Crispy','Dizzy','Epic','Fuzzy','Golden','Happy','Jolly','Lucky','Mighty','Noble','Quirky','Silent','Sneaky','Spicy','Sunny','Swift','Tiny','Wild','Wobbly','Zesty','Ancient','Mystic','Funky','Gentle','Hungry','Sleepy','Shiny','Clever'];
+  const NOUN = ['Pancake','Dog','Flower','Waffle','Falcon','Pickle','Muffin','Walrus','Cactus','Biscuit','Dragon','Turnip','Otter','Noodle','Pirate','Wizard','Mango','Badger','Lantern','Comet','Pretzel','Gnome','Penguin','Tulip','Donut','Raccoon','Goblin','Ferret','Cupcake','Toad','Thistle','Knight'];
+
+  let v = BigInt('0x' + await mac('user|' + raw));
+  const a = Number(v % 32n); v /= 32n;
+  const o = Number(v % 32n); v /= 32n;
+  const username = ADJ[a] + NOUN[o] + (1000 + Number(v % 9000n));
+  const id = (await mac('id|' + raw)).slice(0, 16);   // different domain tag -> independent of username
+
+  console.log('%c' + username + '  %c' + id, 'color:#5b7fc7;font:700 16px monospace', 'color:#7a96d1;font:14px monospace');
+  return { username, id };
+})();
